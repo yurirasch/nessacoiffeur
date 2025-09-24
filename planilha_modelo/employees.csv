@@ -1,0 +1,4 @@
+employee_id,name,role,specialty,active,default_start,default_end
+1,LUCIENE,func,manicure,TRUE,09:00,19:00
+2,MARCELA,func,manicure,TRUE,09:00,19:00
+3,TINA,func,cabeleireiro,TRUE,09:00,19:00

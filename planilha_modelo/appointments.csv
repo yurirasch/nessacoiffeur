@@ -1,0 +1,1 @@
+appt_id,date,start_time,duration_min,end_time,employee_id,employee_name,client_id,client_name,client_phone,service_id,service_name,source_sheet,source_row,status,created_at,created_by,notes,price,promo_code,final_price

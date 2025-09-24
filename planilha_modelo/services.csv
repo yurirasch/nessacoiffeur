@@ -1,0 +1,19 @@
+service_id,name,specialty,default_duration_min,base_price,active
+M1,PÉ,manicure,60,,TRUE
+M2,MÃO,manicure,60,,TRUE
+M3,DEPILAÇÃO,manicure,60,,TRUE
+M4,PODOLOGIA,manicure,60,,TRUE
+M5,MANUTENÇÃO,manicure,60,,TRUE
+M6,SPA,manicure,60,,TRUE
+M7,PLANTAR,manicure,60,,TRUE
+C1,CORTE,cabeleireiro,60,,TRUE
+C2,ESCOVA PROGRESSIVA,cabeleireiro,90,,TRUE
+C3,SOBRANCELHA DE HENNA,cabeleireiro,60,,TRUE
+C4,SOBRANCELHA FIO A FIO,cabeleireiro,60,,TRUE
+C5,BALAYAGE NA TOUCA,cabeleireiro,120,,TRUE
+C6,BALAYAGE NO PAPEL,cabeleireiro,120,,TRUE
+C7,HIDRATAÇÃO,cabeleireiro,60,,TRUE
+C8,RAIZ,cabeleireiro,90,,TRUE
+C9,ESCOVA BOTÓX,cabeleireiro,90,,TRUE
+C10,ESCOVA COMUM,cabeleireiro,60,,TRUE
+C11,ESCOVA PROGRESSIVA,cabeleireiro,90,,TRUE
