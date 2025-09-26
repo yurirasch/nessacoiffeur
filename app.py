@@ -7,22 +7,16 @@ import pandas as pd
 import datetime as dt
 from dateutil import tz
 import gspread
-from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Nessa Coiffeur - Agenda", layout="wide")
 st.set_option("client.showErrorDetails", True)
 
-# ========= Conexão Google Sheets =========
+# =========================
+# Conexão Google Sheets
+# =========================
 def gs_client():
-    scopes = [
-        "https://www.googleapis.com/auth/spreadsheets",
-        "https://www.googleapis.com/auth/drive",
-    ]
-    creds = Credentials.from_service_account_info(
-        st.secrets["gcp_service_account"], scopes=scopes
-    )
+    # usa helper nativo do gspread (evita erros de AuthorizedSession/_auth_request)
     return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
-
 
 @st.cache_data(ttl=30)
 def open_sheet():
@@ -66,7 +60,9 @@ def update_employee_password(ws, username: str, new_hash: str, must_change=False
     ws.update_cell(row_idx, mcp_col, "TRUE" if must_change else "FALSE")
     return True, ""
 
-# ========= Utilidades de tempo =========
+# =========================
+# Utilidades de tempo
+# =========================
 def parse_time(hhmm: str) -> dt.time:
     h, m = map(int, str(hhmm).split(":"))
     return dt.time(h, m)
@@ -86,11 +82,14 @@ def generate_slots(date, start="09:00", end="19:00", step_min=60):
         cur += dt.timedelta(minutes=step_min)
     return slots
 
-# ========= Conflito de horários =========
+# =========================
+# Conflito de horários
+# =========================
 def is_free(date, start_str, duration_min, employee_id, appts_df, blocks_df):
     start_dt = dt.datetime.combine(date, parse_time(start_str))
     end_dt = end_by_duration(start_dt, duration_min)
 
+    # agendamentos do dia (booked/done)
     ap = appts_df[
         (appts_df["employee_id"].astype(str) == str(employee_id))
         & (appts_df["date"] == date.strftime("%Y-%m-%d"))
@@ -103,6 +102,7 @@ def is_free(date, start_str, duration_min, employee_id, appts_df, blocks_df):
         if (start_dt < e) and (end_dt > s):
             return False
 
+    # bloqueios
     bl = blocks_df[
         (blocks_df["employee_id"].astype(str) == str(employee_id))
         & (blocks_df["date"] == date.strftime("%Y-%m-%d"))
@@ -115,7 +115,9 @@ def is_free(date, start_str, duration_min, employee_id, appts_df, blocks_df):
 
     return True
 
-# ========= Segurança (senha) =========
+# =========================
+# Segurança de senha (PBKDF2)
+# =========================
 # Formato salvo em password_hash:
 # pbkdf2_sha256$ITERATIONS$SALT_HEX$HASH_HEX
 def hash_pw(plain: str, iterations: int = 100_000) -> str:
@@ -128,20 +130,23 @@ def check_pw(plain: str, stored: str) -> bool:
         if not stored:
             return False
         if stored.startswith("pbkdf2_sha256$"):
-            alg, iters, salt_hex, hash_hex = stored.split("$", 3)
+            _, iters, salt_hex, hash_hex = stored.split("$", 3)
             iters = int(iters)
             salt = bytes.fromhex(salt_hex)
             expected = bytes.fromhex(hash_hex)
             test = hashlib.pbkdf2_hmac("sha256", plain.encode(), salt, iters)
             return hmac.compare_digest(test, expected)
-        # fallback (apenas se alguém salvou em texto)
+        # fallback: texto puro (se alguém preencheu direto)
         return plain == stored
     except Exception:
         return False
 
-# ========= Agendar =========
+# =========================
+# Agendar
+# =========================
 def book(ws_appts, appts_df, date, time_str, duration_min, service_row, employee_row,
-         cliente_nome, cliente_tel, created_by, price=None, promo_code=None, final_price=None, notes=""):
+         cliente_nome, cliente_tel, created_by, price=None, promo_code=None,
+         final_price=None, notes=""):
     start_dt = dt.datetime.combine(date, parse_time(time_str))
     end_dt = end_by_duration(start_dt, duration_min)
     if not is_free(date, time_str, duration_min, employee_row["employee_id"], appts_df, blocks_df):
@@ -173,24 +178,47 @@ def book(ws_appts, appts_df, date, time_str, duration_min, service_row, employee
     append_row(ws_appts, row)
     st.success("✅ Agendamento confirmado!")
 
-# ========= Carrega dados base =========
-sh = open_sheet()
-employees_df, ws_employees = read_df(sh, "FUNCIONARIOS")
-services_df, ws_services = read_df(sh, "SERVICOS")
-clients_df, ws_clients = read_df(sh, "CLIENTES")
-appts_df, ws_appts = read_df(sh, "DB_AGENDAMENTOS")
-blocks_df, ws_blocks = read_df(sh, "BLOQUEIOS")
+# =========================
+# DEBUG (temporário)
+# =========================
+with st.expander("🔧 DEBUG de conexão (temporário)"):
+    try:
+        st.write("sheet_id:", st.secrets.get("sheet_id"))
+        sa = st.secrets.get("gcp_service_account", {})
+        st.write("service account email:", sa.get("client_email"))
 
-# Normalizações
-if "specialty" in employees_df.columns:
-    employees_df["specialty"] = (
-        employees_df["specialty"].astype(str).str.strip().str.lower()
-    )
+        cli = gs_client()
+        st.write("✅ Autorizado com gspread")
+
+        _sh = cli.open_by_key(st.secrets["sheet_id"])
+        st.write("✅ Abriu planilha")
+        st.write("Abas encontradas:", [ws.title for ws in _sh.worksheets()])
+    except Exception as e:
+        st.error(f"❌ Falhou antes de carregar abas: {e}")
+        st.stop()
+
+# =========================
+# Carrega dados base
+# =========================
+sh = open_sheet()
 
 def _to_bool(x):
     return str(x).strip().lower() in ("true", "1", "sim", "yes")
 
-if "active" in employees_df.columns and "active_bool" not in employees_df.columns:
+try:
+    employees_df, ws_employees = read_df(sh, "FUNCIONARIOS")
+    services_df,  ws_services  = read_df(sh, "SERVICOS")
+    clients_df,   ws_clients    = read_df(sh, "CLIENTES")
+    appts_df,     ws_appts      = read_df(sh, "DB_AGENDAMENTOS")
+    blocks_df,    ws_blocks     = read_df(sh, "BLOQUEIOS")
+except Exception as e:
+    st.error(f"❌ Erro ao ler abas: {e}")
+    st.stop()
+
+# normalizações
+if "specialty" in employees_df.columns:
+    employees_df["specialty"] = employees_df["specialty"].astype(str).str.strip().str.lower()
+if "active" in employees_df.columns:
     employees_df["active_bool"] = employees_df["active"].apply(_to_bool)
 else:
     employees_df["active_bool"] = True
@@ -198,13 +226,14 @@ else:
 def ativos(df):
     return df[df["active_bool"] == True]
 
-# ========= Login (planilha) =========
+# =========================
+# Login / Troca de senha
+# =========================
 def login_view():
     st.sidebar.header("Acesso")
     u = st.sidebar.text_input("Usuário")
     p = st.sidebar.text_input("Senha", type="password")
     if st.sidebar.button("Entrar", type="primary"):
-        # procura usuário
         dfu = employees_df.copy()
         if "username" not in dfu.columns:
             st.sidebar.error("Aba FUNCIONARIOS sem coluna 'username'.")
@@ -215,26 +244,22 @@ def login_view():
             st.stop()
         r = row.iloc[0].to_dict()
 
-        # senha inicial 1234 se password_hash vazio e must_change TRUE
         stored = str(r.get("password_hash") or "").strip()
         must_change = _to_bool(r.get("must_change_password"))
 
-        # Se não há senha gravada (primeiro acesso)
+        # primeiro acesso: 1234
         if not stored and str(p) == "1234":
             st.session_state.pending_pwd_user = r["username"]
             st.session_state.display_name = r.get("name", r["username"])
-            st.session_state.role = r.get("role", "func")
             st.session_state.perfil = "admin" if str(r.get("role","")).lower()=="admin" else "func"
             st.session_state.must_change = True
             st.rerun()
 
-        # Se já tem senha gravada, valida
+        # validando senha gravada
         if stored and check_pw(p, stored):
-            # se precisa trocar, direciona
             if must_change:
                 st.session_state.pending_pwd_user = r["username"]
                 st.session_state.display_name = r.get("name", r["username"])
-                st.session_state.role = r.get("role", "func")
                 st.session_state.perfil = "admin" if str(r.get("role","")).lower()=="admin" else "func"
                 st.session_state.must_change = True
                 st.rerun()
@@ -270,30 +295,28 @@ def change_password_view():
             "nome": st.session_state.display_name,
             "perfil": st.session_state.perfil,
         }
-        # limpa flags
-        for k in ("pending_pwd_user","display_name","role","perfil","must_change"):
+        for k in ("pending_pwd_user","display_name","perfil","must_change"):
             st.session_state.pop(k, None)
         st.sidebar.success("Senha atualizada!")
         st.rerun()
 
-# Fluxo de autenticação
+# Gate de autenticação
 if "auth" not in st.session_state:
     if "pending_pwd_user" in st.session_state:
-        # usuário passou no login mas precisa trocar a senha
         change_password_view()
     else:
-        # tela de login
         login_view()
-    st.stop()  # não renderiza nada abaixo até autenticar
+    st.stop()
 
-auth = st.session_state["auth"]  # daqui pra baixo temos certeza que existe
+auth = st.session_state["auth"]
 st.sidebar.success(f"Olá, {auth['nome']} ({auth['perfil']})")
 if st.sidebar.button("Sair"):
     st.session_state.clear()
     st.rerun()
 
-
-# ========= UI principal =========
+# =========================
+# UI principal
+# =========================
 aba_agendar, aba_func, aba_admin, aba_dash = st.tabs(
     ["📅 Agendar (Cliente)", "🧑‍🔧 Funcionário", "🛠️ Admin", "📈 Dashboard"]
 )
@@ -337,7 +360,7 @@ with aba_agendar:
 
         start_def = prof_row.get("default_start", "09:00")
         end_def = prof_row.get("default_end", "19:00")
-        slots = generate_slots(data_sel, start_def, end_def, step_min=60)
+        slots = generate_slots(data_sel, start_def, end_def, step_min=60)  # cliente: 60min
         hora = st.selectbox("Horário", slots)
 
     with col3:
@@ -348,15 +371,10 @@ with aba_agendar:
                 st.error("Informe o nome.")
             else:
                 book(
-                    ws_appts,
-                    appts_df,
-                    data_sel,
-                    hora,
+                    ws_appts, appts_df, data_sel, hora,
                     duration_min=int(svc_row.get("default_duration_min") or 60),
-                    service_row=svc_row,
-                    employee_row=prof_row,
-                    cliente_nome=cli_nome,
-                    cliente_tel=cli_tel,
+                    service_row=svc_row, employee_row=prof_row,
+                    cliente_nome=cli_nome, cliente_tel=cli_tel,
                     created_by=auth["usuario"],
                 )
 
@@ -438,7 +456,7 @@ with aba_admin:
         st.info("Acesso restrito.")
     else:
         st.write("Cadastre/edite **serviços, funcionários e clientes** diretamente na planilha.")
-        st.caption("Duração padrão do serviço define o slot de cliente (60 min usual).")
+        st.caption("A duração padrão do serviço define o slot de cliente (60 min usual).")
 
 with aba_dash:
     st.subheader("Resumo do dia")
@@ -447,21 +465,16 @@ with aba_dash:
     st.metric("Atendimentos hoje", len(day))
     colA, colB = st.columns(2)
     with colA:
-        if not day.empty:
-            por_prof = day.groupby("employee_id").size().reset_index(name="qtd")
-        else:
-            por_prof = pd.DataFrame({"employee_id": [], "qtd": []})
+        por_prof = (
+            day.groupby("employee_id").size().reset_index(name="qtd")
+            if not day.empty else pd.DataFrame({"employee_id": [], "qtd": []})
+        )
         st.write("Por profissional")
         st.dataframe(por_prof, use_container_width=True)
     with colB:
-        if not day.empty:
-            serv = (
-                day.groupby("service_name")
-                .size()
-                .reset_index(name="qtd")
-                .sort_values("qtd", ascending=False)
-            )
-        else:
-            serv = pd.DataFrame({"service_name": [], "qtd": []})
+        serv = (
+            day.groupby("service_name").size().reset_index(name="qtd").sort_values("qtd", ascending=False)
+            if not day.empty else pd.DataFrame({"service_name": [], "qtd": []})
+        )
         st.write("Serviços do dia")
         st.dataframe(serv, use_container_width=True)
