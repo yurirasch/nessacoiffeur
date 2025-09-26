@@ -233,29 +233,46 @@ def login_view():
     st.sidebar.header("Acesso")
     u = st.sidebar.text_input("Usuário")
     p = st.sidebar.text_input("Senha", type="password")
+
     if st.sidebar.button("Entrar", type="primary"):
         dfu = employees_df.copy()
+
+        # Confirma se temos a coluna 'username'
         if "username" not in dfu.columns:
             st.sidebar.error("Aba FUNCIONARIOS sem coluna 'username'.")
             st.stop()
-        row = dfu[dfu["username"].astype(str).str.lower() == str(u).strip().lower()]
+
+        # Busca do usuário (case-insensitive, tirando espaços)
+        mask = dfu["username"].astype(str).str.strip().str.lower() == str(u).strip().lower()
+        row = dfu[mask]
+
         if row.empty:
             st.sidebar.error("Usuário ou senha inválidos.")
             st.stop()
+
         r = row.iloc[0].to_dict()
+
+        # --- DEBUG TEMPORÁRIO: mostra o que veio da planilha para esse user ---
+        with st.sidebar.expander("DEBUG login (temporário)"):
+            st.write({k: r.get(k) for k in ["username","role","name","password_hash","must_change_password"]})
 
         stored = str(r.get("password_hash") or "").strip()
         must_change = _to_bool(r.get("must_change_password"))
 
-        # primeiro acesso: 1234
-        if not stored and str(p) == "1234":
-            st.session_state.pending_pwd_user = r["username"]
-            st.session_state.display_name = r.get("name", r["username"])
-            st.session_state.perfil = "admin" if str(r.get("role","")).lower()=="admin" else "func"
-            st.session_state.must_change = True
-            st.rerun()
+        # ===== PRIMEIRO ACESSO (sem hash salvo) =====
+        if stored == "":
+            # Aceita '1234' OU senha em branco para levar à troca obrigatória
+            if p == "1234" or p == "":
+                st.session_state.pending_pwd_user = r["username"]
+                st.session_state.display_name = r.get("name", r["username"])
+                st.session_state.perfil = "admin" if str(r.get("role","")).lower()=="admin" else "func"
+                st.session_state.must_change = True
+                st.rerun()
+            else:
+                st.sidebar.error("Para primeiro acesso use a senha 1234 (ou deixe em branco).")
+                st.stop()
 
-        # validando senha gravada
+        # ===== LOGIN NORMAL (hash salvo) =====
         if stored and check_pw(p, stored):
             if must_change:
                 st.session_state.pending_pwd_user = r["username"]
@@ -273,6 +290,7 @@ def login_view():
         else:
             st.sidebar.error("Usuário ou senha inválidos.")
             st.stop()
+
 
 def change_password_view():
     st.sidebar.header("Alterar senha (obrigatório)")
