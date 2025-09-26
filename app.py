@@ -276,16 +276,21 @@ def change_password_view():
         st.rerun()
 
 # Fluxo de autenticação
-if "auth" not in st.session_state and "pending_pwd_user" not in st.session_state:
-    login_view()
-elif "pending_pwd_user" in st.session_state:
-    change_password_view()
+if "auth" not in st.session_state:
+    if "pending_pwd_user" in st.session_state:
+        # usuário passou no login mas precisa trocar a senha
+        change_password_view()
+    else:
+        # tela de login
+        login_view()
+    st.stop()  # não renderiza nada abaixo até autenticar
 
-auth = st.session_state.get("auth")
+auth = st.session_state["auth"]  # daqui pra baixo temos certeza que existe
 st.sidebar.success(f"Olá, {auth['nome']} ({auth['perfil']})")
 if st.sidebar.button("Sair"):
     st.session_state.clear()
     st.rerun()
+
 
 # ========= UI principal =========
 aba_agendar, aba_func, aba_admin, aba_dash = st.tabs(
