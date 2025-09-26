@@ -24,7 +24,11 @@ def open_sheet():
     return cli.open_by_key(st.secrets["sheet_id"])
 
 def read_df(sh, tab):
-    ws = sh.worksheet(tab)
+    # Evita fetch_sheet_metadata/AuthorizedSession._auth_request
+    wss = sh.worksheets()                     # já provou que funciona no DEBUG
+    ws = next((w for w in wss if w.title == tab), None)
+    if ws is None:
+        raise Exception(f"Aba '{tab}' não encontrada na planilha")
     df = pd.DataFrame(ws.get_all_records())
     return df, ws
 
