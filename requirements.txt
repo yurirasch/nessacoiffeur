@@ -1,5 +1,6 @@
 streamlit==1.38.0
 gspread==6.1.4
-oauth2client==4.1.3
 pandas==2.2.2
 python-dateutil==2.9.0.post0
+google-auth==2.40.3
+google-auth-oauthlib==1.2.2
