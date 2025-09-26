@@ -7,21 +7,22 @@ import pandas as pd
 import datetime as dt
 from dateutil import tz
 import gspread
-from oauth2client.service_account import ServiceAccountCredentials
+from google.oauth2.service_account import Credentials
 
 st.set_page_config(page_title="Nessa Coiffeur - Agenda", layout="wide")
 st.set_option("client.showErrorDetails", True)
 
 # ========= Conexão Google Sheets =========
 def gs_client():
-    scope = [
-        "https://spreadsheets.google.com/feeds",
+    scopes = [
+        "https://www.googleapis.com/auth/spreadsheets",
         "https://www.googleapis.com/auth/drive",
     ]
-    creds = ServiceAccountCredentials.from_json_keyfile_dict(
-        st.secrets["gcp_service_account"], scope
+    creds = Credentials.from_service_account_info(
+        st.secrets["gcp_service_account"], scopes=scopes
     )
     return gspread.authorize(creds)
+
 
 @st.cache_data(ttl=30)
 def open_sheet():
