@@ -1,4 +1,5 @@
 # app.py — Nessa Coiffeur (PT-BR) — Google Sheets + Streamlit
+
 import os
 import hmac
 import hashlib
@@ -6,7 +7,10 @@ import streamlit as st
 import pandas as pd
 import datetime as dt
 from dateutil import tz
+
+# ==== google-auth nativo + gspread (sem oauth2client) ====
 import gspread
+from google.oauth2.service_account import Credentials as SACreds
 
 st.set_page_config(page_title="Nessa Coiffeur - Agenda", layout="wide")
 st.set_option("client.showErrorDetails", True)
@@ -14,22 +18,41 @@ st.set_option("client.showErrorDetails", True)
 # =========================
 # Conexão Google Sheets
 # =========================
-def gs_client():
-    # usa helper nativo do gspread (evita erros de AuthorizedSession/_auth_request)
-    return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
+SCOPES = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive",
+]
 
-@st.cache_data(ttl=30)
+@st.cache_resource
+def gs_client():
+    """
+    Cria cliente gspread usando google-auth (evita AuthorizedSession/_auth_request).
+    """
+    info = dict(st.secrets["gcp_service_account"])
+    creds = SACreds.from_service_account_info(info, scopes=SCOPES)
+    # gspread aceita credenciais do google-auth diretamente
+    cli = gspread.Client(auth=creds)
+    return cli
+
+@st.cache_resource
 def open_sheet():
     cli = gs_client()
     return cli.open_by_key(st.secrets["sheet_id"])
 
+def get_ws_by_title(sh, title: str):
+    """
+    NUNCA usa sh.worksheet(title) (que chama fetch_sheet_metadata).
+    Percorre worksheets já carregadas (funciona no seu DEBUG).
+    """
+    for ws in sh.worksheets():
+        if ws.title == title:
+            return ws
+    raise RuntimeError(f"Aba '{title}' não encontrada")
+
 def read_df(sh, tab):
-    # Evita fetch_sheet_metadata/AuthorizedSession._auth_request
-    wss = sh.worksheets()                     # já provou que funciona no DEBUG
-    ws = next((w for w in wss if w.title == tab), None)
-    if ws is None:
-        raise Exception(f"Aba '{tab}' não encontrada na planilha")
-    df = pd.DataFrame(ws.get_all_records())
+    ws = get_ws_by_title(sh, tab)
+    rows = ws.get_all_records()
+    df = pd.DataFrame(rows)
     return df, ws
 
 def append_row(ws, d: dict):
@@ -192,9 +215,9 @@ with st.expander("🔧 DEBUG de conexão (temporário)"):
         st.write("service account email:", sa.get("client_email"))
 
         cli = gs_client()
-        st.write("✅ Autorizado com gspread")
+        st.write("✅ Autorizado com gspread/google-auth")
 
-        _sh = cli.open_by_key(st.secrets["sheet_id"])
+        _sh = open_sheet()
         st.write("✅ Abriu planilha")
         st.write("Abas encontradas:", [ws.title for ws in _sh.worksheets()])
     except Exception as e:
@@ -212,9 +235,9 @@ def _to_bool(x):
 try:
     employees_df, ws_employees = read_df(sh, "FUNCIONARIOS")
     services_df,  ws_services  = read_df(sh, "SERVICOS")
-    clients_df,   ws_clients    = read_df(sh, "CLIENTES")
-    appts_df,     ws_appts      = read_df(sh, "DB_AGENDAMENTOS")
-    blocks_df,    ws_blocks     = read_df(sh, "BLOQUEIOS")
+    clients_df,   ws_clients   = read_df(sh, "CLIENTES")
+    appts_df,     ws_appts     = read_df(sh, "DB_AGENDAMENTOS")
+    blocks_df,    ws_blocks    = read_df(sh, "BLOQUEIOS")
 except Exception as e:
     st.error(f"❌ Erro ao ler abas: {e}")
     st.stop()
@@ -256,7 +279,7 @@ def login_view():
 
         r = row.iloc[0].to_dict()
 
-        # --- DEBUG TEMPORÁRIO: mostra o que veio da planilha para esse user ---
+        # --- DEBUG TEMPORÁRIO ---
         with st.sidebar.expander("DEBUG login (temporário)"):
             st.write({k: r.get(k) for k in ["username","role","name","password_hash","must_change_password"]})
 
