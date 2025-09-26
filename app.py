@@ -21,7 +21,7 @@ def gs_client():
     creds = Credentials.from_service_account_info(
         st.secrets["gcp_service_account"], scopes=scopes
     )
-    return gspread.authorize(creds)
+    return gspread.service_account_from_dict(st.secrets["gcp_service_account"])
 
 
 @st.cache_data(ttl=30)
