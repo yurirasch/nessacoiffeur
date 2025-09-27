@@ -1,0 +1,19 @@
+{
+  "clientes": [],
+  "servicos": [
+    {"service_id":"S1","name":"PÉ","specialty":"manicure","active":true,"default_duration":60},
+    {"service_id":"S2","name":"MÃO","specialty":"manicure","active":true,"default_duration":60},
+    {"service_id":"S3","name":"PÉ E MÃO (COMBO)","specialty":"manicure","active":true,"default_duration":60},
+    {"service_id":"S4","name":"CORTE","specialty":"cabeleireiro","active":true,"default_duration":60},
+    {"service_id":"S5","name":"ESCOVA COMUM","specialty":"cabeleireiro","active":true,"default_duration":60}
+  ],
+  "funcionarios": [
+    {"employee_id":"100","name":"Admin","role":"admin","specialty":"admin","active":true,"default_start":"09:00","default_end":"19:00","username":"admin","email":"","password_hash":"","must_change_password":true},
+    {"employee_id":"101","name":"LUCIENE","role":"funcionario","specialty":"manicure","active":true,"default_start":"09:00","default_end":"19:00","username":"luciene","email":"","password_hash":"","must_change_password":true},
+    {"employee_id":"102","name":"MARCELA","role":"funcionario","specialty":"manicure","active":true,"default_start":"09:00","default_end":"19:00","username":"marcela","email":"","password_hash":"","must_change_password":true},
+    {"employee_id":"103","name":"TINA","role":"funcionario","specialty":"cabeleireiro","active":true,"default_start":"09:00","default_end":"19:00","username":"tina","email":"","password_hash":"","must_change_password":true}
+  ],
+  "agendamentos": [],
+  "bloqueios": [],
+  "generated_at": "2025-09-27T00:00:00Z"
+}
