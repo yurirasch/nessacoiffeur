@@ -19,15 +19,11 @@ st.set_option("client.showErrorDetails", True)
 # =========================
 # Config via Secrets
 # =========================
-# Adicione em Settings → Secrets:
-# GITHUB_TOKEN = "ghp_xxx..."
-# GH_REPO      = "yurirasch/nessacoiffeur"
-# GH_BRANCH    = "main"
-# DB_PATH      = "db/db.json"
-GITHUB_TOKEN = "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"
-GH_REPO = "yurirasch/nessacoiffeur"
-GH_BRANCH = "main"
-DB_PATH = "db/db.json"
+GH_TOKEN  = st.secrets["GITHUB_TOKEN"]             # obrigatório
+GH_REPO   = st.secrets.get("GH_REPO", "yurirasch/nessacoiffeur")
+GH_BRANCH = st.secrets.get("GH_BRANCH", "main")
+DB_PATH   = st.secrets.get("DB_PATH", "db/db.json")
+
 
 
 API_BASE = "https://api.github.com"
